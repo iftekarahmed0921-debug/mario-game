@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Will You Be My Valentine? 💖</title>
+
+<style>
+  body {
+    margin: 0;
+    background: linear-gradient(#fdeef5, #fff8e8);
+    font-family: system-ui, -apple-system, sans-serif;
+    text-align: center;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    margin: 10px 0 6px;
+  }
+
+  canvas {
+    display: block;
+    margin: 0 auto;
+    background: linear-gradient(#eaf7ff, #fdeef5);
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.15);
+  }
+
+  /* HUD */
+  .hud {
+    display:flex;
+    justify-content:center;
+    gap:14px;
+    margin-bottom:6px;
+  }
+
+  .pill {
+    background:white;
+    padding:6px 12px;
+    border-radius:999px;
+    font-size:14px;
+    box-shadow:0 4px 12px rgba(0,0,0,.12);
+  }
+
+  /* MOBILE CONTROLS */
+  .mobile-controls {
+    display:none;
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    gap:10px;
+    z-index:50;
+  }
+
+  .mc-btn {
+    width:56px;
+    height:56px;
+    border-radius:16px;
+    background:white;
+    box-shadow:0 6px 16px rgba(0,0,0,.18);
+    font-size:22px;
+    font-weight:bold;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  /* MODAL */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+  }
+
+  .modal {
+    background: white;
+    padding: 22px;
+    width: 340px;
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,.25);
+  }
+
+  .buttons {
+    position: relative;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:18px;
+    height:70px;
+  }
+
+  button {
+    padding: 10px 18px;
+    border-radius: 14px;
+    border: none;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .yes {
+    background: #ff6fa6;
+    color: white;
+  }
+
+  .no {
+    background: #f3f3f3;
+    position:absolute;
+    left:50%;
+    transform:translateX(60px);
+    transition: all .25s cubic-bezier(.2,.8,.3,1);
+  }
+
+  .particle {
+    position: fixed;
+    pointer-events: none;
+    font-size: 22px;
+    animation: float 2s ease forwards;
+  }
+
+  @keyframes float {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(160px); opacity: 0; }
+  }
+
+  @media (max-width: 720px) {
+    .mobile-controls { display:flex; }
+  }
+</style>
+</head>
+
+<body>
+
+<h1>Collect the cats 😺</h1>
+
+<div class="hud">
+  <div class="pill" id="score">Cats: 0</div>
+  <div class="pill" id="soundToggle">🔊 Sound On</div>
+</div>
+
+<canvas id="game" width="900" height="420"></canvas>
+
+<!-- MOBILE CONTROLS -->
+<div class="mobile-controls">
+  <div class="mc-btn" id="leftBtn">◀</div>
+  <div class="mc-btn" id="jumpBtn">▲</div>
+  <div class="mc-btn" id="rightBtn">▶</div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="modalTitle">Will you be my Valentine? 💖</h2>
+    <p id="modalText">You know which one to choose 😌</p>
+
+    <div class="buttons" id="btnArea">
+      <button class="yes" id="yesBtn">✅ Yes</button>
+      <button class="no" id="noBtn">❌ No</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =================== CANVAS =================== */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const W = canvas.width;
+const H = canvas.height;
+
+/* =================== INPUT =================== */
+let keys = {};
+let touch = {left:false,right:false,jump:false};
+
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+/* =================== SOUND =================== */
+let soundOn = true;
+const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+let musicInterval = null;
+
+function beep(freq, dur=0.12) {
+  if(!soundOn) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.frequency.value = freq;
+  g.gain.value = 0.06;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  o.stop(audioCtx.currentTime + dur);
+}
+
+function startMusic(){
+  if(!soundOn || musicInterval) return;
+  const melody = [523,659,784,659];
+  let i = 0;
+  musicInterval = setInterval(()=>{
+    beep(melody[i++%melody.length],0.3);
+  },500);
+}
+
+function stopMusic(){
+  clearInterval(musicInterval);
+  musicInterval = null;
+}
+
+document.getElementById("soundToggle").onclick = ()=>{
+  soundOn = !soundOn;
+  document.getElementById("soundToggle").textContent =
+    soundOn ? "🔊 Sound On" : "🔇 Sound Off";
+  soundOn ? startMusic() : stopMusic();
+};
+
+/* Start music on first interaction */
+["keydown","mousedown","touchstart"].forEach(ev=>{
+  window.addEventListener(ev,()=>startMusic(),{once:true});
+});
+
+/* =================== PLAYER =================== */
+const player = {
+  x: 50, y: 300,
+  vx: 0, vy: 0,
+  w: 34, h: 42,
+  onGround: false,
+  dir: 1
+};
+
+const gravity = 0.9;
+const ground = 360;
+
+/* =================== CATS =================== */
+const cats = [
+  {x:220,y:260,taken:false},
+  {x:420,y:220,taken:false},
+  {x:620,y:260,taken:false}
+];
+let collected = 0;
+
+/* =================== GAME LOOP =================== */
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+/* =================== UPDATE =================== */
+function update(){
+  if(keys["ArrowLeft"]||keys["a"]||touch.left){player.vx-=0.6;player.dir=-1;}
+  if(keys["ArrowRight"]||keys["d"]||touch.right){player.vx+=0.6;player.dir=1;}
+
+  if((keys[" "]||keys["ArrowUp"]||touch.jump)&&player.onGround){
+    player.vy=-14;
+    player.onGround=false;
+    beep(600);
+  }
+
+  player.vy+=gravity;
+  player.x+=player.vx;
+  player.y+=player.vy;
+  player.vx*=0.85;
+
+  if(player.y+player.h>ground){
+    player.y=ground-player.h;
+    player.vy=0;
+    player.onGround=true;
+  }
+
+  cats.forEach(c=>{
+    if(!c.taken && Math.hypot(player.x-c.x,player.y-c.y)<30){
+      c.taken=true;
+      collected++;
+      document.getElementById("score").textContent="Cats: "+collected;
+      beep(900);
+    }
+  });
+
+  if(player.x>W-80){
+    document.getElementById("overlay").style.display="flex";
+  }
+}
+
+/* =================== DRAW =================== */
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  ctx.fillStyle="#c6f1d6";
+  ctx.fillRect(0,ground,W,60);
+
+  // PLAYER
+  ctx.save();
+  ctx.translate(player.x,player.y);
+  ctx.fillStyle="#ff6fa6";
+  ctx.beginPath();
+  ctx.roundRect(0,0,player.w,player.h,14);
+  ctx.fill();
+
+  ctx.fillStyle="#fff";
+  ctx.beginPath();
+  ctx.arc(12+player.dir*2,16,5,0,Math.PI*2);
+  ctx.arc(22+player.dir*2,16,5,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#333";
+  ctx.beginPath();
+  ctx.arc(12+player.dir*2,16,2,0,Math.PI*2);
+  ctx.arc(22+player.dir*2,16,2,0,Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // CATS
+  cats.forEach(c=>{
+    if(!c.taken){
+      ctx.font="26px serif";
+      ctx.fillText("😺",c.x,c.y);
+    }
+  });
+}
+
+/* =================== MOBILE CONTROLS =================== */
+["left","right","jump"].forEach(id=>{
+  const el=document.getElementById(id+"Btn");
+  el.addEventListener("touchstart",()=>touch[id]=true);
+  el.addEventListener("touchend",()=>touch[id]=false);
+});
+
+/* =================== NO BUTTON CHAOS =================== */
+const noBtn=document.getElementById("noBtn");
+const area=document.getElementById("btnArea");
+let chaos=0;
+
+function dodge(){
+  chaos++;
+  const maxX=area.clientWidth-noBtn.offsetWidth;
+  const maxY=area.clientHeight-noBtn.offsetHeight;
+  const intensity=Math.min(chaos*25,140);
+
+  noBtn.style.left=Math.random()*maxX+"px";
+  noBtn.style.top=Math.random()*maxY+"px";
+  noBtn.style.transform=`translateX(${Math.random()*intensity-intensity/2}px)`;
+
+  if(chaos>4) modalText.textContent="Still trying? 😏";
+  if(chaos>8) modalText.textContent="Okay now you're just flirting 😈";
+}
+
+["mouseenter","click","touchstart","focus"].forEach(ev=>{
+  noBtn.addEventListener(ev,e=>{
+    e.preventDefault();
+    dodge();
+  });
+});
+
+/* =================== YES BUTTON =================== */
+yesBtn.onclick=()=>{
+  modalTitle.textContent="YAY!! You made me the happiest person 💕";
+  modalText.textContent="Made with ❤️ just for you";
+  beep(1200,0.2); beep(1500,0.2);
+
+  for(let i=0;i<25;i++){
+    const p=document.createElement("div");
+    p.className="particle";
+    p.textContent="💖";
+    p.style.left=Math.random()*innerWidth+"px";
+    p.style.top=Math.random()*innerHeight/2+"px";
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(),2000);
+  }
+};
+</script>
+
+</body>
+</html>
